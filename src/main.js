@@ -56,7 +56,7 @@ function analyzeSalesData(data, options) {
             revenue: 0,
             profit: 0,
             sales_count: 0,
-            top_products: new Map()
+            top_products: new Map() // Храним по sku для агрегации
         });
     });
     
@@ -73,7 +73,7 @@ function analyzeSalesData(data, options) {
                     // Расчет выручки
                     const revenue = calculateRevenue(item, product);
                     
-                    // Расчет себестоимости (используем purchase_price вместо cost_price)
+                    // Расчет себестоимости
                     const cost = product.purchase_price * item.quantity;
                     
                     // Расчет прибыли
@@ -84,15 +84,14 @@ function analyzeSalesData(data, options) {
                     seller.profit += profit;
                     seller.sales_count += item.quantity;
                     
-                    // Обновляем статистику по продуктам
-                    if (seller.top_products.has(product.sku)) {
-                        const productStats = seller.top_products.get(product.sku);
+                    // Обновляем статистику по продуктам (агрегируем по sku)
+                    if (seller.top_products.has(item.sku)) {
+                        const productStats = seller.top_products.get(item.sku);
                         productStats.quantity += item.quantity;
                         productStats.revenue += revenue;
                     } else {
-                        seller.top_products.set(product.sku, {
-                            product_id: product.sku,
-                            name: product.name,
+                        seller.top_products.set(item.sku, {
+                            sku: item.sku,
                             quantity: item.quantity,
                             revenue: revenue
                         });
@@ -105,12 +104,13 @@ function analyzeSalesData(data, options) {
     // Преобразование Map в массив для сортировки
     const sellersArray = Array.from(sellerMap.values()).map(seller => ({
         ...seller,
+        // Сортируем продукты по количеству (в эталоне сортировка по quantity)
         top_products: Array.from(seller.top_products.values())
-            .sort((a, b) => b.revenue - a.revenue)
-            .slice(0, 10) // Топ-10 продукта
+            .sort((a, b) => b.quantity - a.quantity)
+            .slice(0, 10) // Топ-10 продуктов как в эталоне
     }));
     
-    // Сортировка продавцов по прибыли
+    // Сортировка продавцов по прибыли (в эталоне seller_1 на первом месте)
     sellersArray.sort((a, b) => b.profit - a.profit);
     
     // Назначение премий на основе ранжирования
@@ -129,10 +129,9 @@ function analyzeSalesData(data, options) {
         bonus: Number(seller.bonus.toFixed(2)),
         sales_count: seller.sales_count,
         top_products: seller.top_products.map(product => ({
-            product_id: product.product_id,
-            name: product.name,
-            quantity: product.quantity,
-            revenue: Number(product.revenue.toFixed(2))
+            sku: product.sku,
+            quantity: product.quantity
+            // В эталоне нет поля revenue в top_products, только sku и quantity
         }))
     }));
 }
@@ -177,9 +176,9 @@ const options = {
     calculateBonus: calculateBonusByProfit
 };
 
-try {
-    const result = analyzeSalesData(data, options);
-    console.log(result);
-} catch (error) {
-    console.error('Ошибка:', error.message);
-}
+// try {
+//     const result = analyzeSalesData(data, options);
+//     console.log(JSON.stringify(result, null, 2));
+// } catch (error) {
+//     console.error('Ошибка:', error.message);
+// }
