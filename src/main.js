@@ -56,7 +56,7 @@ function analyzeSalesData(data, options) {
             revenue: 0,
             profit: 0,
             sales_count: 0,
-            top_products: new Map() // Храним по sku для агрегации
+            top_products: new Map() // Храним по sku для агрегации количества
         });
     });
     
@@ -84,16 +84,13 @@ function analyzeSalesData(data, options) {
                     seller.profit += profit;
                     seller.sales_count += item.quantity;
                     
-                    // Обновляем статистику по продуктам (агрегируем по sku)
+                    // Обновляем статистику по продуктам (только количество)
                     if (seller.top_products.has(item.sku)) {
-                        const productStats = seller.top_products.get(item.sku);
-                        productStats.quantity += item.quantity;
-                        productStats.revenue += revenue;
+                        seller.top_products.get(item.sku).quantity += item.quantity;
                     } else {
                         seller.top_products.set(item.sku, {
                             sku: item.sku,
-                            quantity: item.quantity,
-                            revenue: revenue
+                            quantity: item.quantity
                         });
                     }
                 }
@@ -104,13 +101,13 @@ function analyzeSalesData(data, options) {
     // Преобразование Map в массив для сортировки
     const sellersArray = Array.from(sellerMap.values()).map(seller => ({
         ...seller,
-        // Сортируем продукты по количеству (в эталоне сортировка по quantity)
+        // Сортируем продукты по количеству в убывающем порядке и берем топ-10
         top_products: Array.from(seller.top_products.values())
             .sort((a, b) => b.quantity - a.quantity)
-            .slice(0, 10) // Топ-10 продуктов как в эталоне
+            .slice(0, 10)
     }));
     
-    // Сортировка продавцов по прибыли (в эталоне seller_1 на первом месте)
+    // Сортировка продавцов по прибыли в убывающем порядке
     sellersArray.sort((a, b) => b.profit - a.profit);
     
     // Назначение премий на основе ранжирования
@@ -120,19 +117,15 @@ function analyzeSalesData(data, options) {
         seller.bonus = seller.profit * bonusPercentage;
     });
     
-    // Подготовка итоговой коллекции с нужными полями
+    // Подготовка итоговой коллекции с нужными полями и округлением
     return sellersArray.map(seller => ({
         seller_id: seller.seller_id,
         name: seller.name,
-        revenue: Number(seller.revenue.toFixed(2)),
-        profit: Number(seller.profit.toFixed(2)),
-        bonus: Number(seller.bonus.toFixed(2)),
+        revenue: Math.round(seller.revenue * 100) / 100, // Округление до 2 знаков
+        profit: Math.round(seller.profit * 100) / 100,
+        bonus: Math.round(seller.bonus * 100) / 100,
         sales_count: seller.sales_count,
-        top_products: seller.top_products.map(product => ({
-            sku: product.sku,
-            quantity: product.quantity
-            // В эталоне нет поля revenue в top_products, только sku и quantity
-        }))
+        top_products: seller.top_products
     }));
 }
 
@@ -169,16 +162,3 @@ function checkOptions(options) {
         throw new Error('calculateBonus должна быть функцией!');
     }
 }
-
-// Пример использования
-const options = {
-    calculateRevenue: calculateSimpleRevenue,
-    calculateBonus: calculateBonusByProfit
-};
-
-// try {
-//     const result = analyzeSalesData(data, options);
-//     console.log(JSON.stringify(result, null, 2));
-// } catch (error) {
-//     console.error('Ошибка:', error.message);
-// }
